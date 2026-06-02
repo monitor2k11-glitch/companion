@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CT - L2 Ops Command v21</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.9/index.global.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/frappe-gantt/0.6.1/frappe-gantt.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/frappe-gantt/0.6.1/frappe-gantt.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+
+    <style>
+        /* --- Dynamic Theme Engine --- */
+        :root[data-theme="light"] {
+            --bg-body: #f4f5f7; --bg-card: #ffffff; --bg-header: #ffffff;
+            --text-main: #172b4d; --text-muted: #6b778c; --border: #dfe1e6;
+            --primary-red: #de350b; 
+            --primary-amber: #ff991f; --silver: #7a869a;
+            --modal-bg: rgba(0,0,0,0.5); --chart-text: #172b4d;
+            --bg-gantt-even: #e9ebf0; 
+            --dash-heading: #42526e;
+        }
+
+        :root[data-theme="dark"] {
+            --bg-body: #121212; --bg-card: #1e1e1e; --bg-header: #0a0a0a;
+            --text-main: #e0e0e0; --text-muted: #9e9e9e; --border: #333333;
+            --primary-red: #d32f2f; 
+            --primary-amber: #ff8f00; --silver: #bdbdbd;
+            --modal-bg: rgba(0,0,0,0.8); --chart-text: #bdbdbd;
+            --bg-gantt-even: #1a1a1a; 
+            --dash-heading: var(--silver); 
+        }
+
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; margin: 0; padding: 0; background-color: var(--bg-body); color: var(--text-main); display: flex; flex-direction: column; height: 100vh; transition: background-color 0.3s, color 0.3s, font-family 0.3s; }
+
+        /* --- Header & Clocks --- */
+        .top-bar-container { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+        .clocks { font-family: monospace; font-size: 16px; color: var(--silver); display: flex; gap: 20px; background: transparent; padding: 5px 15px; border-radius: 4px; border: none;}
+        .clocks span.time-text { color: var(--text-main); font-weight: bold; }
+        .clock-wrapper { display: flex; align-items: center; gap: 6px; }
+        .clock-flag { width: 16px; height: 16px; object-fit: cover; border-radius: 2px; }
+
+        header { background-color: var(--bg-header); padding: 10px 30px; border-bottom: 1px solid var(--border); transition: 0.3s; }
+        .header-content { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+        
+        .nav-tabs { display: flex; gap: 10px; flex-wrap: wrap;}
+        .tab-btn { background: none; border: none; font-size: 14px; color: var(--text-muted); cursor: pointer; padding: 6px 0; border-bottom: 3px solid transparent; transition: 0.3s; }
+        .tab-btn:hover { color: var(--silver); }
+        .tab-btn.active { color: var(--text-main); border-bottom: 3px solid var(--primary-red); font-weight: bold; }
+        
+        .btn { padding: 6px 12px; border-radius: 4px; border: none; font-weight: 600; cursor: pointer; color: white; transition: 0.2s;}
+        .btn-load { background-color: var(--border); color: var(--text-main); border: 1px solid var(--silver); }
+        .btn-load:hover { background-color: var(--text-muted); color: white; }
+        .btn-export { background-color: var(--primary-red); }
+        .btn-action { background-color: var(--primary-amber); color: #000; }
+        
+        /* Clean Notification Bell CSS */
+        .btn-bell { background: transparent; font-size: 20px; position: relative; padding: 4px 8px; border: none; outline: none; cursor: pointer;}
+        .btn-bell:hover { background: rgba(128,128,128,0.2); border-radius: 4px;}
+        .notif-badge { position: absolute; top: 0px; right: 0px; background: var(--primary-red); color: white; font-size: 10px; font-weight: bold; border-radius: 50%; padding: 2px 6px; border: 2px solid var(--bg-header); font-family: sans-serif;}
+
+        .theme-toggle { display: flex; align-items: center; gap: 10px; font-size: 20px; cursor: pointer; }
+        #sync-status { font-size: 13px; font-weight: bold; color: var(--text-muted); margin-right: 15px; }
+
+        /* --- Main Content --- */
+        main { flex-grow: 1; padding: 15px 30px; overflow-y: auto; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.2s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .card { background: var(--bg-card); padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 15px;}
+
+        /* --- Dashboard Grid --- */
+        .dashboard-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+        .chart-container { position: relative; height: 280px; width: 100%; }
+        .chart-container.compact { height: 220px; } 
+        .custom-legend { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 15px; align-items: center;}
+        .dash-heading { color: var(--dash-heading); margin: 5px 0 10px 0; border-bottom: 1px solid var(--border); padding-bottom: 5px; font-size: 16px; transition: color 0.3s;}
+
+        /* --- Tables --- */
+        .controls-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 15px;}
+        .filter-bar { flex-grow: 1; padding: 8px; background: var(--bg-body); border: 1px solid var(--border); color: var(--text-main); border-radius: 4px; font-family: inherit;}
+        .toggle-switch { display: flex; align-items: center; gap: 8px; font-weight: bold; font-size: 14px; cursor: pointer;}
+        
+        table { width: 100%; border-collapse: collapse; background: var(--bg-body); }
+        th, td { padding: 4px 8px; text-align: left; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle;}
+        th { background-color: var(--bg-header); cursor: pointer; user-select: none; padding: 8px; position: sticky; top: 0; z-index: 10;}
+        th:hover { color: var(--primary-amber); }
+        .hover-desc { cursor: help; border-bottom: 1px dashed var(--silver); }
+        
+        .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; text-shadow: 1px 1px 1px rgba(0,0,0,0.5); white-space: nowrap; height: 24px;}
+        .priority-badge { text-shadow: none; border: 1px solid rgba(0,0,0,0.2); }
+        .avatar-img { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; margin-right: 6px; border: 1px solid rgba(255,255,255,0.5); }
+        .avatar-preview { width: 60px; height: 60px; border-radius: 50%; object-fit: cover; margin-top: 5px; border: 2px solid var(--primary-amber); display: none; }
+        .avatar-fallback { width: 18px; height: 18px; border-radius: 50%; color: #fff; font-size: 10px; display: inline-flex; align-items: center; justify-content: center; margin-right: 6px; border: 1px solid rgba(255,255,255,0.5); font-family: sans-serif; font-weight: bold;}
+
+        /* --- Modals --- */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--modal-bg); align-items: center; justify-content: center; z-index: 1000; }
+        .modal-content { background: var(--bg-card); padding: 20px; border-radius: 8px; width: 500px; max-width: 90%; border: 1px solid var(--border); position: relative; max-height: 85vh; overflow-y: auto; }
+        .modal-close-icon { position: absolute; top: 10px; right: 15px; font-size: 24px; color: var(--text-muted); cursor: pointer; font-weight: bold;}
+        .modal-close-icon:hover { color: var(--primary-red); }
+        
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 13px; color: var(--silver);}
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; box-sizing: border-box; background: var(--bg-body); color: var(--text-main); font-family: inherit; resize: vertical; }
+        .conditional-field { display: none; }
+        .details-grid { display: grid; grid-template-columns: 130px 1fr; gap: 8px; font-size: 14px; margin-top: 15px; align-items: center;}
+        .details-grid strong { color: var(--silver); }
+
+        /* --- Gantt Overrides --- */
+        .gantt-wrapper { overflow-x: auto; padding-bottom: 15px; margin-top: 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-body);}
+        .gantt-controls { display: flex; gap: 10px; }
+        .gantt-controls button { background: var(--bg-body); border: 1px solid var(--border); color: var(--text-main); padding: 4px 12px; border-radius: 4px; cursor: pointer; font-family: inherit;}
+        .gantt-controls button.active { background: var(--primary-red); color: white; border-color: var(--primary-red); }
+        .gantt .bar { rx: 4px !important; ry: 4px !important; cursor: pointer; }
+        .gantt .bar-label { fill: #ffffff !important; font-weight: bold; text-shadow: 0px 1px 4px rgba(0,0,0,0.9), 0px 0px 2px rgba(0,0,0,0.9); pointer-events: none;}
+        .gantt .upper-text, .gantt .lower-text, .gantt .tick text { fill: var(--text-main) !important; font-weight: bold; font-family: inherit; }
+        .gantt .grid-background { fill: var(--bg-body) !important; }
+        .gantt .grid-header { fill: var(--bg-card) !important; }
+        .gantt .grid-row { fill: var(--bg-body) !important; }
+        .gantt .grid-row:nth-child(even) { fill: var(--bg-gantt-even) !important; }
+        
+        .gantt-custom-popup { background:var(--bg-card); padding:12px; border-radius:4px; border:1px solid var(--border); color:var(--text-main); font-size:12px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); width: 240px; z-index: 100;}
+        .gantt-custom-popup h4 { margin: 0 0 8px 0; color: var(--primary-amber); border-bottom: 1px solid var(--border); padding-bottom: 4px;}
+        
+        /* --- Settings Specifics --- */
+        .settings-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        .settings-section { padding: 15px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-body); }
+        .settings-section h4 { margin-top: 0; color: var(--dash-heading); border-bottom: 1px solid var(--border); padding-bottom: 8px;}
+        .settings-btn-small { background: var(--border); color: var(--text-main); border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;}
+        
+        .progress-bar-container { width: 100%; background: var(--bg-body); border-radius: 4px; border: 1px solid var(--border); overflow: hidden; height: 16px; margin-top: 15px; }
+        .progress-fill { width: 0%; height: 100%; background: var(--primary-red); transition: width 0.2s; }
+        
+        .img-crop-container { width: 100%; max-height: 250px; overflow: hidden; background: #333; margin-top: 10px; border-radius: 4px; }
+    </style>
+    <style id="dynamic-gantt-styles"></style>
+</head>
+<body>
+
+    <header>
+        <div class="top-bar-container">
+            <h2 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                <span id="app-brand-text" style="color: var(--text-main);">CT - L2 Ops Command</span>
+                <img id="app-brand-image" style="display: none; max-height: 32px; object-fit: contain;">
+                <span style="color: var(--primary-red);">//</span> 
+                <span style="color: var(--silver); font-size:16px;">V21</span>
+            </h2>
+            
+            <div class="clocks">
+                <div class="clock-wrapper"><span id="clock1-icon">🇬🇧</span> <span id="clock-bst" class="time-text">--:--:--</span></div>
+                <div class="clock-wrapper"><span id="clock2-icon">🇮🇳</span> <span id="clock-ist" class="time-text">--:--:--</span></div>
+            </div>
+        </div>
+        
+        <div class="header-content">
+            <div class="nav-tabs">
+                <button class="tab-btn active" onclick="switchTab('dashboard', this)">Dashboard</button>
+                <button class="tab-btn" onclick="switchTab('tasks', this)">Task Manager</button>
+                <button class="tab-btn" onclick="switchTab('gantt', this)">Project Gantt</button>
+                <button class="tab-btn" onclick="switchTab('calendar', this)">Calendar</button>
+                <button class="tab-btn" onclick="switchTab('history', this)">History</button>
+                <button class="tab-btn" onclick="switchTab('team', this)">Team</button>
+                <button class="tab-btn" onclick="switchTab('settings', this)">⚙️ Settings</button>
+            </div>
+            <div style="display: flex; align-items: center; gap:10px;">
+                <span id="sync-status">🔴 Not Linked</span>
+                <button class="btn-bell" onclick="document.getElementById('notifModal').style.display='flex'">🔔 <span id="notif-count" class="notif-badge">0</span></button>
+                <button class="btn btn-load" onclick="linkFileAndAutoSave()">🔗 Link JSON</button>
+                <button class="btn btn-export" onclick="silentAutoSave()">💾 Save Now</button>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div id="dashboard" class="tab-content active card">
+            <div class="dashboard-grid">
+                <div><h4 class="dash-heading">Active Tasks by Priority</h4><div class="chart-container"><canvas id="chartPriority"></canvas></div></div>
+                <div>
+                    <h4 class="dash-heading">Active Tasks per Colleague</h4>
+                    <div class="chart-container compact"><canvas id="chartColleagues"></canvas></div>
+                    <div id="colleaguesLegend" class="custom-legend"></div>
+                </div>
+                <div><h4 class="dash-heading">Active Tasks by Application</h4><div class="chart-container"><canvas id="chartApp"></canvas></div></div>
+                <div><h4 class="dash-heading">Active Tasks by Type</h4><div class="chart-container"><canvas id="chartType"></canvas></div></div>
+            </div>
+        </div>
+
+        <div id="tasks" class="tab-content card">
+            <div class="controls-row">
+                <button class="btn btn-action" onclick="openTaskModal()">+ Add Task</button>
+                <input type="text" id="taskFilter" class="filter-bar" placeholder="🔍 Search active tasks..." onkeyup="renderUI()">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="togglePipeline" onchange="renderUI()"> Show Pipeline Queue
+                </label>
+            </div>
+            
+            <div style="overflow-x: auto; max-height: 60vh;">
+                <table id="taskTable">
+                    <thead>
+                        <tr>
+                            <th onclick="toggleSort('type')">Type ↕</th>
+                            <th onclick="toggleSort('identifier')">Task ID ↕</th>
+                            <th onclick="toggleSort('app')">App ↕</th>
+                            <th onclick="toggleSort('priority')">Priority ↕</th>
+                            <th onclick="toggleSort('assigneeId')">Assignee ↕</th>
+                            <th onclick="toggleSort('openDate')">Opened ↕</th>
+                            <th onclick="toggleSort('eta')">ETA ↕</th>
+                            <th onclick="toggleSort('status')">Status ↕</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="taskBody"><tr><td colspan="9">No data. Click 'Link JSON Database' to begin.</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="gantt" class="tab-content card">
+            <div class="controls-row" style="margin-bottom:0;">
+                <h3 style="color: var(--silver); margin: 0;">Active Timeline</h3>
+                <div class="gantt-controls">
+                    <button id="btn-Quarter Day" class="active" onclick="changeGanttView('Quarter Day')">Q-Day</button>
+                    <button id="btn-Day" onclick="changeGanttView('Day')">Day</button>
+                    <button id="btn-Week" onclick="changeGanttView('Week')">Week</button>
+                    <button id="btn-Month" onclick="changeGanttView('Month')">Month</button>
+                </div>
+            </div>
+            <div class="gantt-wrapper"><svg id="gantt-chart"></svg></div>
+        </div>
+
+        <div id="calendar-tab" class="tab-content card">
+            <div id="calendar"></div>
+        </div>
+
+        <div id="history" class="tab-content card">
+            <div class="dashboard-grid" style="margin-bottom: 20px;">
+                <div>
+                    <h4 class="dash-heading">Closed Tasks by Colleague</h4>
+                    <div class="chart-container compact" style="height: 180px;"><canvas id="chartHistColleagues"></canvas></div>
+                    <div id="histColleaguesLegend" class="custom-legend"></div>
+                </div>
+                <div>
+                    <h4 class="dash-heading">Closed Tasks by Type</h4>
+                    <div class="chart-container" style="height: 180px;"><canvas id="chartHistType"></canvas></div>
+                </div>
+            </div>
+
+            <h4 class="dash-heading" style="margin-top: 20px;">Archived Ledger</h4>
+            <div style="overflow-x: auto; max-height: 40vh;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Task ID</th>
+                            <th>App</th>
+                            <th>Assignee</th>
+                            <th>Closed On</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyBody"><tr><td colspan="6">No closed tasks available.</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="team" class="tab-content card">
+            <button class="btn btn-action" style="margin-bottom:10px;" onclick="openTeamModal()">+ Add Colleague</button>
+            <table id="teamTable">
+                <thead><tr><th>Colleague</th><th>Color Code</th><th>Actions</th></tr></thead>
+                <tbody id="teamBody"></tbody>
+            </table>
+        </div>
+        
+        <div id="settings" class="tab-content card">
+            <h3 style="color: var(--primary-amber); margin-top:0;">Global System Preferences</h3>
+            <p style="color: var(--silver); font-size: 14px; margin-bottom: 20px;">Changes instantly save to your linked JSON.</p>
+            
+            <div class="settings-container">
+                
+                <div class="settings-section">
+                    <h4>Application Branding</h4>
+                    <div class="form-group">
+                        <label>Display Mode</label>
+                        <select id="settingBrandMode" onchange="toggleBrandingSettings(); applySettings();">
+                            <option value="text">Text Only</option>
+                            <option value="image">Custom Image/Logo</option>
+                        </select>
+                    </div>
+                    <div id="brandTextConfig" class="form-group">
+                        <label>Application Name</label>
+                        <input type="text" id="settingBrandText" placeholder="e.g. CT - L2 Ops Command" onchange="applySettings()">
+                    </div>
+                    <div id="brandImageConfig" class="form-group" style="display:none;">
+                        <label>Upload Logo (PNG format supports transparency)</label>
+                        <input type="file" id="settingBrandImageFile" accept="image/*" onchange="initLogoCrop(this)">
+                        
+                        <div id="cropperContainer" class="img-crop-container" style="display:none;">
+                            <img id="cropperImage" style="max-width: 100%;">
+                        </div>
+                        <div id="cropperControls" style="display:none; margin-top: 10px; gap: 10px;">
+                            <button class="settings-btn-small" style="background:var(--primary-red); color:white;" onclick="applyLogoCrop()">Save Cropped Logo</button>
+                            <button class="settings-btn-small" onclick="cancelLogoCrop()">Cancel</button>
+                        </div>
+                        
+                        <div style="margin-top: 15px; border-top: 1px solid var(--border); padding-top:10px;">
+                            <label style="font-size:11px;">Current Active Logo:</label><br>
+                            <img id="settingBrandImagePreview" style="display:none; max-height: 40px; margin-top:5px; background: repeating-conic-gradient(#80808033 0 25%, transparent 0 50%) 50% / 10px 10px;">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h4>UI & Base Theme</h4>
+                    <div class="form-group"><label>Application Theme</label><select id="settingTheme" onchange="applySettings()"><option value="dark">Dark Mode</option><option value="light">Light Mode</option></select></div>
+                    <div class="form-group"><label>Global Font Family</label><select id="settingFont" onchange="applySettings()"><option value="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif">Modern Default (System UI)</option><option value="'Segoe UI', Tahoma, Geneva, Verdana, sans-serif">Verdana / Segoe (Wider)</option><option value="'Courier New', Courier, monospace">Monospace (Terminal style)</option><option value="Georgia, 'Times New Roman', Times, serif">Serif (Classic)</option></select></div>
+                    <div class="form-group"><label>Primary Accent Color</label><input type="color" id="settingAccent" style="height: 40px; width: 100px; padding: 2px;" onchange="applySettings()"></div>
+                </div>
+
+                <div class="settings-section">
+                    <h4>Clock Display</h4>
+                    <div class="form-group"><label>Clock 1 Custom Flag/Icon</label>
+                        <div style="display:flex; align-items:center; gap:10px;"><input type="file" accept="image/*" onchange="updateClockIcon(this, 1)" style="flex-grow:1;"><img id="previewClock1" class="clock-flag" style="display:none; width:30px; height:30px;"><button class="settings-btn-small" onclick="clearClockIcon(1)">Clear</button></div>
+                    </div>
+                    <div class="form-group"><label>Clock 2 Custom Flag/Icon</label>
+                        <div style="display:flex; align-items:center; gap:10px;"><input type="file" accept="image/*" onchange="updateClockIcon(this, 2)" style="flex-grow:1;"><img id="previewClock2" class="clock-flag" style="display:none; width:30px; height:30px;"><button class="settings-btn-small" onclick="clearClockIcon(2)">Clear</button></div>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h4>Dashboard Config</h4>
+                    <div class="form-group"><label style="display:flex; align-items:center; gap:8px;"><input type="checkbox" id="settingDashLabels" onchange="applySettings()" style="width:auto;"> Show Data Labels on Charts</label></div>
+                    <div class="form-group"><label>Tasks per Colleague Chart Type</label><select id="setChartColleagues" onchange="applySettings()"><option value="doughnut">Doughnut</option><option value="pie">Pie</option><option value="bar">Bar Chart</option></select></div>
+                    <div class="form-group"><label>Tasks by Priority Chart Type</label><select id="setChartPriority" onchange="applySettings()"><option value="bar">Bar Chart</option><option value="pie">Pie</option><option value="doughnut">Doughnut</option><option value="line">Line Graph</option></select></div>
+                    <div class="form-group"><label>Tasks by App Chart Type</label><select id="setChartApp" onchange="applySettings()"><option value="pie">Pie</option><option value="doughnut">Doughnut</option><option value="bar">Bar Chart</option></select></div>
+                    <div class="form-group"><label>Tasks by Type Chart Type</label><select id="setChartType" onchange="applySettings()"><option value="bar">Bar Chart</option><option value="pie">Pie</option><option value="doughnut">Doughnut</option><option value="line">Line Graph</option></select></div>
+                </div>
+                
+                <div class="settings-section">
+                    <h4>History Config</h4>
+                    <div class="form-group"><label>Closed by Colleague Chart</label><select id="setChartHistColleagues" onchange="applySettings()"><option value="doughnut">Doughnut</option><option value="pie">Pie</option><option value="bar">Bar Chart</option></select></div>
+                    <div class="form-group"><label>Closed by Type Chart</label><select id="setChartHistType" onchange="applySettings()"><option value="bar">Bar Chart</option><option value="pie">Pie</option><option value="doughnut">Doughnut</option><option value="line">Line Graph</option></select></div>
+                </div>
+
+                <div class="settings-section">
+                    <h4>Calendar Preferences</h4>
+                    <div class="form-group"><label>Default Calendar View</label><select id="settingCalView" onchange="applySettings()"><option value="dayGridMonth">Month View</option><option value="timeGridWeek">Week View (With Time Grid)</option><option value="dayGridWeek">Week View (Summary)</option><option value="timeGridDay">Daily Schedule</option></select></div>
+                    <div class="form-group"><label>Start of the Week</label><select id="settingCalStart" onchange="applySettings()"><option value="0">Sunday</option><option value="1">Monday</option><option value="6">Saturday</option></select></div>
+                    <div class="form-group" style="margin-bottom: 25px;"><label style="display:flex; align-items:center; gap:8px;"><input type="checkbox" id="settingCalWeekends" onchange="applySettings()" style="width:auto;"> Show Weekends</label></div>
+                    
+                    <h4>Data Management</h4>
+                    <button class="btn btn-export" style="width:100%; margin-bottom: 10px;" onclick="exportTasksToExcel()">📊 Export All Data to Excel</button>
+                    
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <input type="file" id="importExcelFile" accept=".xlsx, .xls" style="flex-grow:1; display:none;" onchange="importTasksFromExcel(event)">
+                        <button class="btn btn-load" style="width:100%;" onclick="document.getElementById('importExcelFile').click()">📥 Bulk Import from Excel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="progressModal" class="modal" style="z-index: 2000;">
+        <div class="modal-content" style="width: 400px; text-align: center;">
+            <h3 style="color: var(--primary-amber); margin-top:0;">Importing Data</h3>
+            <p id="progressText" style="color: var(--silver); font-size:14px;">Initializing...</p>
+            <div class="progress-bar-container"><div id="progressBar" class="progress-fill"></div></div>
+        </div>
+    </div>
+
+    <div id="importErrorModal" class="modal" style="z-index: 2000;">
+        <div class="modal-content" style="width: 600px;">
+            <span class="modal-close-icon" onclick="document.getElementById('importErrorModal').style.display='none'">×</span>
+            <h3 style="color: var(--primary-red); margin-top:0;">⚠️ Import Aborted: Data Issues Found</h3>
+            <div style="color: var(--silver); font-size: 13px; margin-bottom: 15px; background: rgba(222, 53, 11, 0.1); padding: 10px; border-left: 3px solid var(--primary-red); border-radius: 4px;">
+                <b>Mandatory Columns:</b> "Task ID", "Type", and "Priority".<br>
+                Please fix the following issues in your Excel file and try importing again. Nothing has been saved.
+            </div>
+            <div style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border); border-radius: 4px; margin-bottom: 15px;">
+                <table style="width: 100%; border-collapse: collapse; font-size:12px;">
+                    <thead style="position: sticky; top: 0; background: var(--bg-header);">
+                        <tr><th>Excel Row</th><th>Column</th><th>Diagnostic Issue</th></tr>
+                    </thead>
+                    <tbody id="importErrorBody"></tbody>
+                </table>
+            </div>
+            <button class="btn btn-export" style="width: 100%;" onclick="document.getElementById('importErrorModal').style.display='none'">Acknowledge & Close</button>
+        </div>
+    </div>
+
+    <div id="notifModal" class="modal">
+        <div class="modal-content" style="width: 450px;">
+            <span class="modal-close-icon" onclick="closeModals()">×</span>
+            <h3 style="color: var(--primary-amber); border-bottom: 1px solid var(--border); padding-bottom: 5px; margin-top:0;">Daily Action Items</h3>
+            <div id="notif-body" style="margin-top: 15px; max-height: 400px; overflow-y: auto;"></div>
+        </div>
+    </div>
+
+    <div id="taskModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close-icon" onclick="closeModals()">×</span>
+            <h3 id="taskModalTitle" style="color: var(--primary-amber); border-bottom: 1px solid var(--border); padding-bottom: 5px; margin-top:0;">Task Entry</h3>
+            <form id="taskForm" onsubmit="saveTask(event)">
+                <input type="hidden" id="taskId">
+                <div class="form-group"><label>Type</label>
+                    <select id="taskType" onchange="toggleFormFields()" required>
+                        <option>Incident</option><option>Problem</option><option>Vulnerability</option><option>Renewal</option><option>Planned</option>
+                    </select>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 10px;">
+                    <div class="form-group"><label>Task ID</label><input type="text" id="taskIdentifier" required></div>
+                    <div class="form-group"><label>Application</label><input type="text" id="taskApp" required></div>
+                </div>
+                
+                <div class="form-group"><label>Description</label><textarea id="taskDescription" rows="2" required placeholder="Provide concise context..."></textarea></div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div class="form-group"><label>Priority</label><select id="taskPriority" required><option>P1 - Critical</option><option>P2 - High</option><option>P3 - Medium</option><option>P4 - Low</option></select></div>
+                    <div class="form-group"><label>Assignee</label><select id="taskAssignee" required></select></div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div class="form-group"><label>Open Date</label><input type="datetime-local" id="taskOpenDate" required></div>
+                    <div class="form-group"><label>ETA / Due Date</label><input type="datetime-local" id="taskEta" required></div>
+                </div>
+                
+                <div id="renewalFields" class="conditional-field form-group">
+                    <label>Reminder Dates</label>
+                    <div style="display:flex; gap:10px;"><input type="date" id="rem1"><input type="date" id="rem2"><input type="date" id="rem3"></div>
+                </div>
+
+                <div class="form-group"><label>Status</label>
+                    <select id="taskStatus" required onchange="toggleFormFields()">
+                        <option>Open</option><option>In Progress</option><option>On Hold</option><option>Pipeline</option><option>Closed</option>
+                    </select>
+                </div>
+                
+                <div id="closureFields" class="conditional-field">
+                    <div class="form-group"><label style="color: var(--primary-red);">Closed On</label><input type="datetime-local" id="taskClosureDate"></div>
+                    <div class="form-group"><label style="color: var(--primary-red);">Closure Notes (Required)</label><textarea id="taskClosureNotes" rows="3" placeholder="Provide root cause or closure confirmation..."></textarea></div>
+                </div>
+
+                <button type="submit" class="btn btn-export" style="width: 100%; margin-top: 10px;">Save Task</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="detailsModal" class="modal">
+        <div class="modal-content" style="width: 400px;">
+            <span class="modal-close-icon" onclick="closeModals()">×</span>
+            <h3 style="color: var(--primary-amber); border-bottom: 1px solid var(--border); padding-bottom: 5px; margin-top:0;">Task Details</h3>
+            <div id="detailsContent" class="details-grid"></div>
+        </div>
+    </div>
+
+    <div id="teamModal" class="modal">
+        <div class="modal-content" style="width: 350px;">
+            <span class="modal-close-icon" onclick="closeModals()">×</span>
+            <h3 style="color: var(--primary-amber); margin-top:0;">Colleague Entry</h3>
+            <form onsubmit="saveColleague(event)">
+                <input type="hidden" id="colleagueId">
+                <input type="hidden" id="colleagueAvatarBase64">
+                <div class="form-group"><label>Name</label><input type="text" id="colleagueName" required></div>
+                <div class="form-group"><label>Color</label><input type="color" id="colleagueColor" value="#d32f2f" style="height: 40px;"></div>
+                <div class="form-group"><label>Profile Picture</label><input type="file" id="colleagueAvatarFile" accept="image/*" onchange="encodeImageFileAsURL(this)"><img id="avatarPreview" class="avatar-preview" src=""></div>
+                <button type="submit" class="btn btn-export" style="width: 100%; margin-top:10px;">Save</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        Chart.register(ChartDataLabels);
+
+        // --- Global State ---
+        let appData = { colleagues: [], tasks: [], settings: {} };
+        let charts = {};
+        let calendarApp, ganttApp;
+        let sortState = { column: 'eta', asc: true };
+        let currentGanttView = 'Quarter Day';
+        let fileHandle = null;
+        let autoSaveInterval = null;
+        let logoCropper = null;
+
+        function updateClocks() {
+            const now = new Date(), opts = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
+            document.getElementById('clock-bst').innerText = now.toLocaleTimeString('en-GB', { ...opts, timeZone: 'Europe/London' });
+            document.getElementById('clock-ist').innerText = now.toLocaleTimeString('en-IN', { ...opts, timeZone: 'Asia/Kolkata' });
+        } setInterval(updateClocks, 1000); updateClocks();
+
+        function setSyncStatus(text, color = 'var(--text-muted)') {
+            const el = document.getElementById('sync-status'); el.innerText = text; el.style.color = color;
+        }
+
+        async function linkFileAndAutoSave() {
+            try {
+                [fileHandle] = await window.showOpenFilePicker({ types: [{ description: 'JSON Database', accept: { 'application/json': ['.json'] } }], multiple: false });
+                const contents = await (await fileHandle.getFile()).text();
+                if (contents.trim() !== '') {
+                    appData = JSON.parse(contents);
+                    if(!appData.settings) appData.settings = {};
+                    loadSettingsToUI();
+                }
+                renderUI();
+                setSyncStatus('🟢 Linked & Auto-Saving', 'var(--primary-amber)');
+                if(autoSaveInterval) clearInterval(autoSaveInterval);
+                autoSaveInterval = setInterval(silentAutoSave, 30000);
+            } catch (error) { console.warn("File linking aborted."); }
+        }
+
+        async function silentAutoSave() {
+            if (!fileHandle) return;
+            try {
+                setSyncStatus('🔄 Saving...', 'var(--silver)');
+                const writable = await fileHandle.createWritable();
+                await writable.write(JSON.stringify(appData, null, 2)); await writable.close();
+                setSyncStatus(`🟢 Saved: ${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`, '#36b37e');
+            } catch (error) { setSyncStatus('🔴 Save Failed', 'var(--primary-red)'); }
+        }
+
+        // --- Settings & Branding Engine ---
+        function toggleBrandingSettings() {
+            const mode = document.getElementById('settingBrandMode').value;
+            document.getElementById('brandTextConfig').style.display = mode === 'text' ? 'block' : 'none';
+            document.getElementById('brandImageConfig').style.display = mode === 'image' ? 'block' : 'none';
+        }
+
+        function initLogoCrop(input) {
+            const file = input.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = document.getElementById('cropperImage');
+                img.src = e.target.result;
+                document.getElementById('cropperContainer').style.display = 'block';
+                document.getElementById('cropperControls').style.display = 'flex';
+                
+                if (logoCropper) logoCropper.destroy();
+                logoCropper = new Cropper(img, { viewMode: 1, background: false, autoCropArea: 1 });
+            }
+            reader.readAsDataURL(file);
+        }
+
+        function applyLogoCrop() {
+            if (!logoCropper) return;
+            const canvas = logoCropper.getCroppedCanvas({ fillColor: 'transparent' });
+            const base64 = canvas.toDataURL('image/png');
+            
+            appData.settings.brandImage = base64;
+            document.getElementById('settingBrandImagePreview').src = base64;
+            document.getElementById('settingBrandImagePreview').style.display = 'block';
+            
+            cancelLogoCrop(); applySettings();
+        }
+
+        function cancelLogoCrop() {
+            if (logoCropper) { logoCropper.destroy(); logoCropper = null; }
+            document.getElementById('cropperContainer').style.display = 'none';
+            document.getElementById('cropperControls').style.display = 'none';
+            document.getElementById('settingBrandImageFile').value = '';
+        }
+
+        function loadSettingsToUI() {
+            const s = appData.settings || {};
+            
+            // Safe Fetch Helpers
+            const safeSetVal = (id, val) => { const el = document.getElementById(id); if(el) el.value = val; };
+            const safeSetCheck = (id, val) => { const el = document.getElementById(id); if(el) el.checked = val; };
+
+            const theme = s.theme || 'dark'; const font = s.font || "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif"; const accent = s.accent || '#d32f2f';
+            document.documentElement.setAttribute('data-theme', theme); document.body.style.fontFamily = font; document.documentElement.style.setProperty('--primary-red', accent);
+            
+            safeSetVal('settingTheme', theme); safeSetVal('settingFont', font); safeSetVal('settingAccent', accent);
+
+            const brandMode = s.brandMode || 'text'; const brandText = s.brandText || 'CT - L2 Ops Command';
+            safeSetVal('settingBrandMode', brandMode); safeSetVal('settingBrandText', brandText);
+            if(s.brandImage && document.getElementById('settingBrandImagePreview')) {
+                document.getElementById('settingBrandImagePreview').src = s.brandImage;
+                document.getElementById('settingBrandImagePreview').style.display = 'block';
+            }
+            toggleBrandingSettings();
+
+            if(brandMode === 'image' && s.brandImage) {
+                document.getElementById('app-brand-text').style.display = 'none';
+                document.getElementById('app-brand-image').src = s.brandImage;
+                document.getElementById('app-brand-image').style.display = 'block';
+            } else {
+                document.getElementById('app-brand-text').innerText = brandText;
+                document.getElementById('app-brand-text').style.display = 'block';
+                document.getElementById('app-brand-image').style.display = 'none';
+            }
+
+            const c1 = s.clock1Icon; const c2 = s.clock2Icon;
+            document.getElementById('clock1-icon').innerHTML = c1 ? `<img src="${c1}" class="clock-flag">` : '🇬🇧';
+            document.getElementById('clock2-icon').innerHTML = c2 ? `<img src="${c2}" class="clock-flag">` : '🇮🇳';
+            if(document.getElementById('previewClock1')) { document.getElementById('previewClock1').src = c1 || ''; document.getElementById('previewClock1').style.display = c1 ? 'block' : 'none'; }
+            if(document.getElementById('previewClock2')) { document.getElementById('previewClock2').src = c2 || ''; document.getElementById('previewClock2').style.display = c2 ? 'block' : 'none'; }
+
+            safeSetCheck('settingDashLabels', s.dashLabels !== false);
+            safeSetVal('setChartColleagues', s.chartColleagues || 'doughnut');
+            safeSetVal('setChartPriority', s.chartPriority || 'bar');
+            safeSetVal('setChartApp', s.chartApp || 'pie');
+            safeSetVal('setChartType', s.chartType || 'bar');
+            safeSetVal('setChartHistColleagues', s.chartHistColleagues || 'doughnut');
+            safeSetVal('setChartHistType', s.chartHistType || 'bar');
+            safeSetVal('settingCalView', s.calView || 'dayGridMonth');
+            safeSetVal('settingCalStart', s.calStart !== undefined ? s.calStart : '0');
+            safeSetCheck('settingCalWeekends', s.calWeekends !== false);
+        }
+
+        function applySettings() {
+            if(!appData.settings) appData.settings = {};
+            const s = appData.settings;
+            
+            const getVal = (id, def) => { const el = document.getElementById(id); return el ? el.value : def; };
+            const getCheck = (id, def) => { const el = document.getElementById(id); return el ? el.checked : def; };
+
+            s.theme = getVal('settingTheme', 'dark'); s.font = getVal('settingFont', ''); s.accent = getVal('settingAccent', '#d32f2f');
+            s.brandMode = getVal('settingBrandMode', 'text'); s.brandText = getVal('settingBrandText', 'CT - L2 Ops Command');
+            s.dashLabels = getCheck('settingDashLabels', true);
+            s.chartColleagues = getVal('setChartColleagues', 'doughnut'); s.chartPriority = getVal('setChartPriority', 'bar');
+            s.chartApp = getVal('setChartApp', 'pie'); s.chartType = getVal('setChartType', 'bar');
+            s.chartHistColleagues = getVal('setChartHistColleagues', 'doughnut'); s.chartHistType = getVal('setChartHistType', 'bar');
+            s.calView = getVal('settingCalView', 'dayGridMonth'); s.calStart = getVal('settingCalStart', '0'); s.calWeekends = getCheck('settingCalWeekends', true);
+            
+            loadSettingsToUI(); if(fileHandle) silentAutoSave(); updateDynamicStyles(); renderUI(); 
+        }
+
+        function updateClockIcon(input, num) {
+            const file = input.files[0]; if(!file) return;
+            const reader = new FileReader();
+            reader.onloadend = function() { appData.settings[`clock${num}Icon`] = reader.result; loadSettingsToUI(); if(fileHandle) silentAutoSave(); }
+            reader.readAsDataURL(file);
+        }
+        function clearClockIcon(num) { appData.settings[`clock${num}Icon`] = ""; loadSettingsToUI(); if(fileHandle) silentAutoSave(); }
+
+        // --- Excel Export & Import ---
+        function exportTasksToExcel() {
+            if(!appData.tasks || appData.tasks.length === 0) { alert("No tasks available to export."); return; }
+            const exportData = appData.tasks.map(t => {
+                const c = appData.colleagues.find(x => x.id === t.assigneeId);
+                return {
+                    "Type": t.type, "Task ID": t.identifier, "Description": t.description || '', "Application": t.app,
+                    "Priority": t.priority, "Assignee": c ? c.name : 'Unassigned',
+                    "Open Date": t.openDate ? t.openDate.replace('T', ' ') : '', "ETA / Due": t.eta.replace('T', ' '), 
+                    "Status": t.status, "Closed On": t.closureDate ? t.closureDate.replace('T', ' ') : '', "Closure Notes": t.closureNotes || '',
+                    "Reminders": [t.rem1, t.rem2, t.rem3].filter(Boolean).join(', ')
+                };
+            });
+            const worksheet = XLSX.utils.json_to_sheet(exportData); const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "All Tasks Ledger");
+            XLSX.writeFile(workbook, `CT_L2_Ops_Ledger_${new Date().toISOString().split('T')[0]}.xlsx`);
+        }
+
+        async function importTasksFromExcel(event) {
+            const file = event.target.files[0]; if (!file) return;
+            const progModal = document.getElementById('progressModal'); const progBar = document.getElementById('progressBar'); const progText = document.getElementById('progressText');
+            progModal.style.display = 'flex'; progBar.style.width = '10%'; progText.innerText = 'Reading file securely...';
+
+            try {
+                const data = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = e => resolve(new Uint8Array(e.target.result)); reader.onerror = reject; reader.readAsArrayBuffer(file); });
+                progBar.style.width = '30%'; progText.innerText = 'Parsing Excel sheets...'; await new Promise(r => setTimeout(r, 50));
+                
+                const workbook = XLSX.read(data, {type: 'array', cellDates: true});
+                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                const json = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+                progBar.style.width = '45%'; progText.innerText = 'Executing Pre-Flight Validation...'; await new Promise(r => setTimeout(r, 50));
+
+                let errors = [];
+                json.forEach((row, index) => {
+                    let rNum = index + 2; 
+                    if(!row["Task ID"] || row["Task ID"].toString().trim() === "") errors.push({row: rNum, col: "Task ID", issue: "Missing mandatory Task ID"});
+                    if(!row["Type"] || row["Type"].toString().trim() === "") errors.push({row: rNum, col: "Type", issue: "Missing Task Type"});
+                    if(!row["Priority"] || row["Priority"].toString().trim() === "") errors.push({row: rNum, col: "Priority", issue: "Missing Priority ranking"});
+                });
+
+                if(errors.length > 0) {
+                    progModal.style.display = 'none';
+                    document.getElementById('importErrorBody').innerHTML = errors.map(e => `<tr><td>${e.row}</td><td>${e.col}</td><td style="color:var(--primary-red); font-weight:bold;">${e.issue}</td></tr>`).join('');
+                    document.getElementById('importErrorModal').style.display = 'flex'; event.target.value = ''; return; 
+                }
+
+                progBar.style.width = '60%'; progText.innerText = 'Merging data into JSON engine...'; await new Promise(r => setTimeout(r, 50));
+
+                let importedCount = 0; let updatedCount = 0; const totalRows = json.length;
+                const formatDate = (val) => {
+                    if(!val) return "";
+                    if(val instanceof Date) return new Date(val.getTime() - val.getTimezoneOffset() * 60000).toISOString().slice(0,16);
+                    return val.toString().replace(' ', 'T');
+                };
+
+                for(let i = 0; i < totalRows; i++) {
+                    const row = json[i];
+                    let aId = "";
+                    if(row["Assignee"] && row["Assignee"] !== "Unassigned" && row["Assignee"] !== "") {
+                        const c = appData.colleagues.find(col => col.name === row["Assignee"]); if(c) aId = c.id;
+                    }
+                    let r1 = "", r2 = "", r3 = "";
+                    if(row["Reminders"]) {
+                        const parts = row["Reminders"].toString().split(',').map(s => s.trim());
+                        r1 = parts[0] || ""; r2 = parts[1] || ""; r3 = parts[2] || "";
+                    }
+
+                    const taskObj = {
+                        identifier: row["Task ID"].toString().trim(), type: row["Type"].toString().trim(), description: row["Description"] ? row["Description"].toString() : "",
+                        app: row["Application"] ? row["Application"].toString() : "", priority: row["Priority"].toString().trim(), assigneeId: aId,
+                        openDate: formatDate(row["Open Date"]), eta: formatDate(row["ETA / Due"]), status: row["Status"] ? row["Status"].toString() : "Open",
+                        closureDate: formatDate(row["Closed On"]), closureNotes: row["Closure Notes"] ? row["Closure Notes"].toString() : "", rem1: r1, rem2: r2, rem3: r3
+                    };
+
+                    const existingIdx = appData.tasks.findIndex(t => t.identifier === taskObj.identifier);
+                    if(existingIdx >= 0) { taskObj.id = appData.tasks[existingIdx].id; appData.tasks[existingIdx] = taskObj; updatedCount++; } 
+                    else { taskObj.id = "import_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5); appData.tasks.push(taskObj); importedCount++; }
+
+                    if (i % 20 === 0 || i === totalRows - 1) {
+                        const pct = 60 + Math.floor(((i + 1) / totalRows) * 35); progBar.style.width = `${pct}%`;
+                        if (i % 100 === 0) await new Promise(r => setTimeout(r, 0)); 
+                    }
+                }
+
+                progBar.style.width = '100%'; progText.innerText = 'Triggering Auto-Save...'; await new Promise(r => setTimeout(r, 200));
+                progModal.style.display = 'none'; alert(`Bulk Import Successful!\n\nNew tasks created: ${importedCount}\nExisting tasks updated: ${updatedCount}`);
+                renderUI(); if(fileHandle) silentAutoSave(); event.target.value = ''; 
+
+            } catch (err) {
+                progModal.style.display = 'none'; console.error(err); alert("Fatal error parsing Excel file. Ensure it is a valid .xlsx file matching the exported template."); event.target.value = '';
+            }
+        }
+
+        // --- UI Helpers ---
+        function encodeImageFileAsURL(element) {
+            const file = element.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onloadend = function() {
+                document.getElementById('colleagueAvatarBase64').value = reader.result;
+                document.getElementById('avatarPreview').src = reader.result; document.getElementById('avatarPreview').style.display = 'block';
+            }
+            reader.readAsDataURL(file);
+        }
+
+        function generateAssigneeBadge(c) {
+            if (!c) return '<span class="badge" style="background:#666; color:#fff;">Unassigned</span>';
+            return `<span class="badge" style="background:${c.color}; color:#fff;">${c.avatar ? `<img src="${c.avatar}" class="avatar-img">` : ''}${c.name}</span>`;
+        }
+
+        function getPriorityStyle(prio) {
+            if(prio.includes('P1')) return 'background:#ff0000; color:#fff;';
+            if(prio.includes('P2')) return 'background:#ff8c00; color:#fff;';
+            if(prio.includes('P3')) return 'background:#ffbf00; color:#000;';
+            if(prio.includes('P4')) return 'background:#ffff00; color:#000;';
+            return 'background:#666; color:#fff;';
+        }
+        
+        function updateDynamicStyles() {
+            let styles = ''; 
+            appData.colleagues.forEach(c => styles += `.gantt-colleague-${c.id} .bar { fill: ${c.color} !important; }\n`);
+            styles += `.gantt-prio-P1 .bar { stroke: #ff0000 !important; stroke-width: 2px !important; }\n`;
+            styles += `.gantt-prio-P2 .bar { stroke: #ff8c00 !important; stroke-width: 2px !important; }\n`;
+            styles += `.gantt-prio-P3 .bar { stroke: #ffbf00 !important; stroke-width: 2px !important; }\n`;
+            styles += `.gantt-prio-P4 .bar { stroke: #ffff00 !important; stroke-width: 2px !important; }\n`;
+            document.getElementById('dynamic-gantt-styles').innerHTML = styles;
+        }
+
+        // --- Notification Engine ---
+        function calculateNotifications() {
+            const activeTasks = getActiveTasks();
+            const now = new Date();
+            const todayStr = now.toISOString().split('T')[0];
+            const todayMs = new Date(todayStr).getTime();
+            let notifs = [];
+            
+            activeTasks.forEach(t => {
+                if(t.status === 'Closed') return;
+                const taskDate = new Date(t.eta);
+                const diffDays = (taskDate.getTime() - todayMs) / (1000 * 60 * 60 * 24);
+                
+                if (diffDays <= 0) {
+                    notifs.push({ type: 'danger', icon: '🔴', text: `[${t.priority}] ${t.identifier} is DUE or OVERDUE (${t.eta.split('T')[0]})` });
+                } else if (t.type === 'Renewal') {
+                    if (diffDays <= 30) notifs.push({ type: 'warning', icon: '🟠', text: `Renewal ${t.identifier} is due in ${Math.ceil(diffDays)} days` });
+                    else if (diffDays <= 60) notifs.push({ type: 'caution', icon: '🟡', text: `Renewal ${t.identifier} is due in ${Math.ceil(diffDays)} days` });
+                }
+            });
+            
+            document.getElementById('notif-count').innerText = notifs.length;
+            const notifBody = document.getElementById('notif-body');
+            if (notifs.length === 0) {
+                notifBody.innerHTML = '<p style="color:var(--silver);">All caught up! No active notifications for today.</p>';
+            } else {
+                notifBody.innerHTML = notifs.map(n => {
+                    let bg = n.type === 'danger' ? 'rgba(222, 53, 11, 0.15)' : (n.type === 'warning' ? 'rgba(255, 153, 31, 0.15)' : 'rgba(255, 235, 59, 0.15)');
+                    let border = n.type === 'danger' ? '#de350b' : (n.type === 'warning' ? '#ff991f' : '#fbc02d');
+                    return `<div style="padding:10px; margin-bottom:8px; background:${bg}; border-left:4px solid ${border}; border-radius:4px; font-size:13px; color:var(--text-main);">
+                        ${n.icon} <b>${n.text}</b>
+                    </div>`;
+                }).join('');
+            }
+        }
+
+        // --- Modals & Tab Nav ---
+        function switchTab(tabId, btnEl) {
+            document.querySelectorAll('.tab-content, .tab-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById(tabId === 'calendar' ? 'calendar-tab' : tabId).classList.add('active');
+            if(btnEl) btnEl.classList.add('active');
+            if (tabId === 'calendar') renderCalendar();
+            if (tabId === 'gantt') renderGantt();
+            if (tabId === 'dashboard') renderDashboard();
+            if (tabId === 'history') renderHistory();
+        }
+
+        function closeModals() { document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); }
+        
+        function toggleFormFields() {
+            const type = document.getElementById('taskType').value;
+            const status = document.getElementById('taskStatus').value;
+            document.getElementById('renewalFields').style.display = (type === 'Renewal') ? 'block' : 'none';
+            
+            const closureDiv = document.getElementById('closureFields');
+            if (status === 'Closed') {
+                closureDiv.style.display = 'block';
+                const dateInput = document.getElementById('taskClosureDate');
+                if(!dateInput.value) {
+                    const now = new Date();
+                    dateInput.value = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0,16);
+                }
+            } else { closureDiv.style.display = 'none'; }
+        }
+
+        function showTaskDetails(taskId) {
+            const t = appData.tasks.find(x => x.id === taskId); if(!t) return;
+            const c = appData.colleagues.find(x => x.id === t.assigneeId);
+            
+            let html = `
+                <strong>Task ID:</strong> <span>${t.identifier}</span>
+                <strong>Type:</strong> <span>${t.type}</span>
+                <strong>Description:</strong> <div style="margin-top:2px; font-size:13px;">${t.description || 'No description provided'}</div>
+                <strong>App:</strong> <span>${t.app}</span>
+                <strong>Priority:</strong> <div><span class="badge priority-badge" style="${getPriorityStyle(t.priority)}">${t.priority}</span></div>
+                <strong>Assignee:</strong> <div>${generateAssigneeBadge(c)}</div>
+                <strong>Status:</strong> <span>${t.status}</span>
+                <strong>Opened:</strong> <span>${(t.openDate||'').replace('T', ' ')}</span>
+                <strong>ETA/Due:</strong> <span>${t.eta.replace('T', ' ')}</span>
+            `;
+            
+            if(t.status === 'Closed') {
+                html += `<strong>Closed On:</strong> <span>${(t.closureDate||'').replace('T', ' ')}</span>`;
+                if(t.closureNotes) html += `<strong style="align-self: start; margin-top: 5px;">Closure Notes:</strong> <div style="margin-top: 5px; color: var(--silver); background: var(--bg-body); padding: 8px; border-radius: 4px; border: 1px solid var(--border); font-size: 13px;">${t.closureNotes}</div>`;
+            }
+            
+            document.getElementById('detailsContent').innerHTML = html;
+            document.getElementById('detailsModal').style.display = 'flex';
+        }
+
+        // --- CRUD ---
+        function openTeamModal(id = null) {
+            document.getElementById('teamModal').style.display = 'flex'; document.getElementById('colleagueAvatarFile').value = ""; const preview = document.getElementById('avatarPreview');
+            if (id) {
+                const c = appData.colleagues.find(x => x.id === id);
+                document.getElementById('colleagueId').value = c.id; document.getElementById('colleagueName').value = c.name; 
+                document.getElementById('colleagueColor').value = c.color; document.getElementById('colleagueAvatarBase64').value = c.avatar || '';
+                if(c.avatar) { preview.src = c.avatar; preview.style.display = 'block'; } else preview.style.display = 'none';
+            } else { 
+                document.getElementById('colleagueId').value = Date.now().toString(); document.getElementById('colleagueName').value = '';
+                document.getElementById('colleagueAvatarBase64').value = ''; preview.style.display = 'none';
+            }
+        }
+
+        function saveColleague(e) {
+            e.preventDefault();
+            const id = document.getElementById('colleagueId').value;
+            const obj = { id, name: document.getElementById('colleagueName').value, color: document.getElementById('colleagueColor').value, avatar: document.getElementById('colleagueAvatarBase64').value };
+            const existing = appData.colleagues.findIndex(x => x.id === id);
+            existing >= 0 ? appData.colleagues[existing] = obj : appData.colleagues.push(obj);
+            closeModals(); updateDynamicStyles(); renderUI(); if(fileHandle) silentAutoSave();
+        }
+        function deleteColleague(id) { if(confirm("Delete?")) { appData.colleagues = appData.colleagues.filter(x => x.id !== id); updateDynamicStyles(); renderUI(); if(fileHandle) silentAutoSave(); } }
+
+        function openTaskModal(id = null) {
+            document.getElementById('taskAssignee').innerHTML = appData.colleagues.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+            document.getElementById('taskModal').style.display = 'flex'; document.getElementById('taskForm').reset();
+            if (id) {
+                const t = appData.tasks.find(x => x.id === id);
+                ['Id','Type','Identifier','Description','App','Priority','Assignee','OpenDate','Eta','Status','ClosureDate','ClosureNotes'].forEach(f => {
+                    const el = document.getElementById('task'+f); if(el) el.value = t[f.charAt(0).toLowerCase() + f.slice(1)] || '';
+                });
+                if(t.type === 'Renewal') { ['rem1','rem2','rem3'].forEach(r => document.getElementById(r).value = t[r] || ''); }
+            } else {
+                document.getElementById('taskId').value = Date.now().toString();
+                const now = new Date(); document.getElementById('taskOpenDate').value = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0,16);
+            }
+            toggleFormFields();
+        }
+
+        function saveTask(e) {
+            e.preventDefault();
+            const status = document.getElementById('taskStatus').value;
+            const closureNotes = document.getElementById('taskClosureNotes').value;
+            if (status === 'Closed' && !closureNotes.trim()) { alert("Please provide Closure Notes to securely archive this task."); return; }
+
+            const id = document.getElementById('taskId').value;
+            const task = {
+                id, type: document.getElementById('taskType').value, identifier: document.getElementById('taskIdentifier').value, description: document.getElementById('taskDescription').value,
+                app: document.getElementById('taskApp').value, priority: document.getElementById('taskPriority').value,
+                assigneeId: document.getElementById('taskAssignee').value, openDate: document.getElementById('taskOpenDate').value, eta: document.getElementById('taskEta').value,
+                status: status, closureDate: document.getElementById('taskClosureDate').value, closureNotes: closureNotes, 
+                rem1: document.getElementById('rem1').value, rem2: document.getElementById('rem2').value, rem3: document.getElementById('rem3').value,
+            };
+            
+            const existing = appData.tasks.findIndex(x => x.id === id);
+            existing >= 0 ? appData.tasks[existing] = task : appData.tasks.push(task);
+            closeModals(); renderUI(); if(fileHandle) silentAutoSave();
+        }
+        function deleteTask(id) { if(confirm("Delete task permanently?")) { appData.tasks = appData.tasks.filter(x => x.id !== id); renderUI(); if(fileHandle) silentAutoSave(); } }
+
+        // --- Render Engine ---
+        function toggleSort(col) { sortState.column = col; sortState.asc = sortState.column === col ? !sortState.asc : true; renderUI(); }
+        function getActiveTasks() { const showPipe = document.getElementById('togglePipeline').checked; return appData.tasks.filter(t => t.status !== 'Closed' && (showPipe || t.status !== 'Pipeline')); }
+        function getClosedTasks() { return appData.tasks.filter(t => t.status === 'Closed'); }
+
+        function renderUI() { 
+            updateDynamicStyles();
+            renderTables(); 
+            calculateNotifications();
+            if(document.getElementById('dashboard').classList.contains('active')) renderDashboard(); 
+            if(document.getElementById('calendar-tab').classList.contains('active')) renderCalendar(); 
+            if(document.getElementById('gantt').classList.contains('active')) renderGantt(); 
+            if(document.getElementById('history').classList.contains('active')) renderHistory(); 
+        }
+
+        function renderTables() {
+            document.getElementById('teamBody').innerHTML = appData.colleagues.map(c => `<tr>
+                <td>${generateAssigneeBadge(c)}</td><td><span class="badge priority-badge" style="background:${c.color}; color:#fff;">${c.color}</span></td>
+                <td><button class="btn btn-load" onclick="openTeamModal('${c.id}')">Edit</button> <button class="btn btn-export" onclick="deleteColleague('${c.id}')">Del</button></td></tr>`).join('') || `<tr><td colspan="3">No colleagues.</td></tr>`;
+
+            const filter = document.getElementById('taskFilter').value.toLowerCase();
+            let fTasks = getActiveTasks().filter(t => Object.values(t).join(' ').toLowerCase().includes(filter) || ((appData.colleagues.find(c => c.id === t.assigneeId) || {}).name || '').toLowerCase().includes(filter));
+            
+            fTasks.sort((a, b) => {
+                let vA = a[sortState.column] || '', vB = b[sortState.column] || '';
+                if(sortState.column === 'assigneeId') { vA = (appData.colleagues.find(c => c.id === a.assigneeId) || {}).name || ''; vB = (appData.colleagues.find(c => c.id === b.assigneeId) || {}).name || ''; }
+                return vA < vB ? (sortState.asc ? -1 : 1) : vA > vB ? (sortState.asc ? 1 : -1) : 0;
+            });
+
+            document.getElementById('taskBody').innerHTML = fTasks.map(t => {
+                const c = appData.colleagues.find(c => c.id === t.assigneeId);
+                return `<tr><td><b>${t.type}</b></td>
+                    <td><span class="hover-desc" title="${t.description || 'No description'}">${t.identifier}</span></td>
+                    <td>${t.app}</td>
+                    <td><span class="badge priority-badge" style="${getPriorityStyle(t.priority)}">${t.priority}</span></td>
+                    <td>${generateAssigneeBadge(c)}</td>
+                    <td>${(t.openDate||'').replace('T', ' ')}</td>
+                    <td>${t.eta.replace('T', ' ')}</td><td>${t.status}</td>
+                    <td><button class="btn btn-load" onclick="openTaskModal('${t.id}')">Edit</button> <button class="btn btn-export" onclick="deleteTask('${t.id}')">Del</button></td></tr>`;
+            }).join('') || `<tr><td colspan="9">No active tasks.</td></tr>`;
+        }
+
+        function renderCalendar() {
+            const s = appData.settings || {};
+            const events = getActiveTasks().map(t => {
+                const c = appData.colleagues.find(x => x.id === t.assigneeId);
+                return { 
+                    id: t.id, title: t.identifier, start: t.eta.split('T')[0], color: c ? c.color : '#666', 
+                    extendedProps: { desc: t.description || t.identifier, avatar: c ? c.avatar : null, color: c ? c.color : '#666', initials: c ? c.name.charAt(0).toUpperCase() : '?' } 
+                };
+            });
+            
+            if (calendarApp) calendarApp.destroy();
+            calendarApp = new FullCalendar.Calendar(document.getElementById('calendar'), { 
+                initialView: s.calView || 'dayGridMonth', firstDay: parseInt(s.calStart || 0), weekends: s.calWeekends !== false,
+                events: events, eventClick: function(info) { showTaskDetails(info.event.id); },
+                eventContent: function(arg) {
+                    const avatarHtml = arg.event.extendedProps.avatar 
+                        ? `<img src="${arg.event.extendedProps.avatar}" style="width:16px; height:16px; border-radius:50%; margin-right:5px; flex-shrink:0; object-fit:cover;">` 
+                        : `<div class="avatar-fallback" style="background:${arg.event.extendedProps.color};">${arg.event.extendedProps.initials}</div>`;
+                        
+                    return { html: `<div title="${arg.event.extendedProps.desc}" style="display:flex; align-items:center; padding:2px; cursor:pointer; font-weight:bold; overflow:hidden;">${avatarHtml}<span style="text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${arg.event.title}</span></div>` };
+                }
+            });
+            setTimeout(() => calendarApp.render(), 10);
+        }
+
+        function changeGanttView(mode) {
+            currentGanttView = mode;
+            ['Quarter Day', 'Day', 'Week', 'Month'].forEach(m => document.getElementById('btn-'+m).classList.remove('active'));
+            document.getElementById('btn-'+mode).classList.add('active');
+            if(ganttApp) ganttApp.change_view_mode(mode);
+        }
+
+        function renderGantt() {
+            document.getElementById('gantt-chart').innerHTML = '';
+            const ganttTasks = getActiveTasks().map(t => {
+                const c = appData.colleagues.find(x => x.id === t.assigneeId);
+                return {
+                    id: t.id, name: t.identifier, desc: t.description || 'No description provided.',
+                    assigneeName: c ? c.name : 'Unassigned', priority: t.priority,
+                    start: (t.openDate||t.eta).split('T')[0], end: t.eta.split('T')[0], 
+                    progress: t.status==='Closed'?100:(t.status==='Pipeline'?0:50), 
+                    custom_class: `gantt-colleague-${t.assigneeId} gantt-prio-${t.priority.split(' ')[0]}`
+                };
+            });
+            
+            if(ganttTasks.length > 0) {
+                ganttApp = new Gantt("#gantt-chart", ganttTasks, { 
+                    view_mode: currentGanttView, on_click: task => showTaskDetails(task.id),
+                    custom_popup_html: function(task) {
+                        return `<div class="gantt-custom-popup"><h4>${task.name}</h4><div style="margin-bottom:4px;"><b>Assignee:</b> ${task.assigneeName}</div><div style="margin-bottom:4px;"><b>Priority:</b> ${task.priority}</div><div>${task.desc}</div></div>`;
+                    }
+                });
+                const anchorDate = new Date(); anchorDate.setDate(anchorDate.getDate() - 2);
+                setTimeout(() => ganttApp.set_scroll_position(anchorDate), 10);
+            }
+        }
+
+        function renderDashboard() {
+            const s = appData.settings || {}; const activeTasks = getActiveTasks();
+            const root = getComputedStyle(document.documentElement); Chart.defaults.color = root.getPropertyValue('--chart-text').trim(); 
+            const countBy = (arr, key) => arr.reduce((acc, obj) => { acc[obj[key]] = (acc[obj[key]] || 0) + 1; return acc; }, {});
+            
+            const aCounts = countBy(activeTasks, 'assigneeId');
+            const colData = Object.keys(aCounts).map(id => { const c = appData.colleagues.find(c => c.id === id); return { label: c?c.name:'Unknown', val: aCounts[id], color: c?c.color:'#666', obj: c }; });
+
+            const showLabels = s.dashLabels !== false;
+            const drawChart = (id, type, labels, data, colors, hideLegend = false) => {
+                if(charts[id]) charts[id].destroy();
+                charts[id] = new Chart(document.getElementById(id), {
+                    type: type, data: { labels: labels, datasets: [{ data: data, backgroundColor: colors, borderWidth: 1, borderColor: root.getPropertyValue('--border') }] },
+                    options: { 
+                        responsive: true, maintainAspectRatio: false, 
+                        plugins: { 
+                            legend: { display: (type==='pie'||type==='doughnut') && !hideLegend, position: 'top', align: 'start', labels: {color: Chart.defaults.color} },
+                            datalabels: { display: showLabels, color: (type === 'pie' || type === 'doughnut') ? '#ffffff' : Chart.defaults.color, anchor: (type === 'bar' || type === 'line') ? 'end' : 'center', align: (type === 'bar' || type === 'line') ? 'bottom' : 'center', font: { weight: 'bold', size: 14, family: root.getPropertyValue('font-family') }, formatter: (value) => value > 0 ? value : '' }
+                        } 
+                    }
+                });
+            };
+
+            drawChart('chartColleagues', s.chartColleagues || 'doughnut', colData.map(d=>d.label), colData.map(d=>d.val), colData.map(d=>d.color), true);
+            document.getElementById('colleaguesLegend').innerHTML = colData.map(d => `${generateAssigneeBadge(d.obj)}`).join('');
+            
+            const pCounts = countBy(activeTasks, 'priority');
+            const pColors = Object.keys(pCounts).map(p => {
+                if(p.includes('P1')) return '#ff0000'; if(p.includes('P2')) return '#ff8c00';
+                if(p.includes('P3')) return '#ffbf00'; return '#ffff00';
+            });
+            drawChart('chartPriority', s.chartPriority || 'bar', Object.keys(pCounts), Object.values(pCounts), pColors);
+            drawChart('chartApp', s.chartApp || 'pie', Object.keys(countBy(activeTasks, 'app')), Object.values(countBy(activeTasks, 'app')), ['#d32f2f', '#ff8f00', '#4c9aff', '#36b37e', '#6554c0']);
+            drawChart('chartType', s.chartType || 'bar', Object.keys(countBy(activeTasks, 'type')), Object.values(countBy(activeTasks, 'type')), ['#7a869a']);
+        }
+
+        function renderHistory() {
+            const s = appData.settings || {}; const closedTasks = getClosedTasks();
+            const root = getComputedStyle(document.documentElement); Chart.defaults.color = root.getPropertyValue('--chart-text').trim(); 
+            const countBy = (arr, key) => arr.reduce((acc, obj) => { acc[obj[key]] = (acc[obj[key]] || 0) + 1; return acc; }, {});
+
+            document.getElementById('historyBody').innerHTML = closedTasks.sort((a,b) => new Date(b.closureDate) - new Date(a.closureDate)).map(t => {
+                const c = appData.colleagues.find(x => x.id === t.assigneeId);
+                return `<tr>
+                    <td><b>${t.type}</b></td>
+                    <td><span class="hover-desc" title="${t.description || 'No description'}">${t.identifier}</span></td>
+                    <td>${t.app}</td>
+                    <td>${generateAssigneeBadge(c)}</td>
+                    <td>${(t.closureDate||'').replace('T', ' ')}</td>
+                    <td><button class="btn btn-load" onclick="showTaskDetails('${t.id}')">View</button></td>
+                </tr>`;
+            }).join('') || `<tr><td colspan="6">No closed tasks found in ledger.</td></tr>`;
+
+            const aCounts = countBy(closedTasks, 'assigneeId');
+            const colData = Object.keys(aCounts).map(id => { const c = appData.colleagues.find(c => c.id === id); return { label: c?c.name:'Unknown', val: aCounts[id], color: c?c.color:'#666', obj: c }; });
+            const showLabels = s.dashLabels !== false;
+
+            const drawHistChart = (id, type, labels, data, colors, hideLegend = false) => {
+                if(charts[id]) charts[id].destroy();
+                charts[id] = new Chart(document.getElementById(id), {
+                    type: type, data: { labels: labels, datasets: [{ data: data, backgroundColor: colors, borderWidth: 1, borderColor: root.getPropertyValue('--border') }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: !hideLegend, position: 'right', labels: {color: Chart.defaults.color} }, datalabels: { display: showLabels, color: (type === 'pie' || type === 'doughnut') ? '#ffffff' : Chart.defaults.color, font: { weight: 'bold', size: 14, family: root.getPropertyValue('font-family') }, formatter: (value) => value > 0 ? value : ''  } } }
+                });
+            };
+
+            drawHistChart('chartHistColleagues', s.chartHistColleagues || 'doughnut', colData.map(d=>d.label), colData.map(d=>d.val), colData.map(d=>d.color), true);
+            document.getElementById('histColleaguesLegend').innerHTML = colData.map(d => `${generateAssigneeBadge(d.obj)}`).join('');
+            drawHistChart('chartHistType', s.chartHistType || 'bar', Object.keys(countBy(closedTasks, 'type')), Object.values(countBy(closedTasks, 'type')), ['#7a869a']);
+        }
+
+        // Initialize Settings on boot safely
+        try { loadSettingsToUI(); } catch(e) { console.error("Boot settings override", e); }
+    </script>
+</body>
+</html>
